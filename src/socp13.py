@@ -15,12 +15,12 @@ for f,t,c,L,_ in br:
     else: r,x=z[c][0]*L/mi/Zb, z[c][1]*L/mi/Zb
     R.append(r);X.append(x)
 R=np.array(R);X=np.array(X); y=1/(R+1j*X); g=y.real; b=y.imag
-# loads MW, Mvar (IEEE13 totals, 670 lumped into 671)
+
 PL=dict.fromkeys(buses,0.);QL=dict.fromkeys(buses,0.)
 for k,(p,q) in {'634':(.400,.290),'645':(.170,.125),'646':(.230,.132),'652':(.128,.086),
     '671':(1.155+.200,.660+.116),'675':(.843,.462),'692':(.170,.151),'611':(.170,.080)}.items():
     PL[k]=p;QL[k]=q
-w=dict.fromkeys(buses,1.0); w['671']=3.0; w['652']=2.0   # 671: hospital/critical; 652: water pumping
+w=dict.fromkeys(buses,1.0); w['671']=3.0; w['652']=2.0
 PV={'675':0.45,'680':0.30}; PVq=0.20
 BESS={'671':0.25}
 Pd_max,Qd_max=2.0,1.5
@@ -62,11 +62,9 @@ def solve(c_eq, verbose=False):
     ci,cj,sj=cii.value,cij.value,sij.value
     gap=[ci[idx[f]]*ci[idx[t]]-cj[l]**2-sj[l]**2 for l,(f,t,*_) in enumerate(br)]
     relgap=[gap[l]/(ci[idx[f]]*ci[idx[t]]) for l,(f,t,*_) in enumerate(br)]
-    # angle recovery along tree from 650
     th=np.zeros(N)
     for l,(f,t,*_) in enumerate(br): th[idx[t]]=th[idx[f]]-np.arctan2(sj[l],cj[l])
     V=np.sqrt(ci)
-    # AC power flow check: recompute flows with recovered phasors
     Vc=V*np.exp(1j*th); mism=[]
     for l,(f,t,*_) in enumerate(br):
         Sf=Vc[idx[f]]*np.conj((Vc[idx[f]]-Vc[idx[t]])*y[l]); mism.append(abs(Sf-(Pf[l].value+1j*Qf[l].value)))

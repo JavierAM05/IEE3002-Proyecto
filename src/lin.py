@@ -1,6 +1,6 @@
 from socp13 import *
 import warnings; warnings.filterwarnings('ignore')
-# LinDistFlow: P_ij = sum downstream injections (no losses); v_j = v_i - 2(r P + x Q)
+
 nb=len(br); P=cp.Variable(nb); Q=cp.Variable(nb); v=cp.Variable(N); x=cp.Variable(N); zeq=cp.Variable()
 Pd=cp.Variable(); Qd=cp.Variable(); ppv={k:cp.Variable() for k in PV}; qpv={k:cp.Variable() for k in PV}; pbs={k:cp.Variable() for k in BESS}
 C=[0.95**2<=v,v<=1.05**2,0<=x,x<=1,0<=Pd,Pd<=Pd_max,cp.abs(Qd)<=Qd_max]
@@ -21,13 +21,13 @@ for bn in buses:
 pr=cp.Problem(cp.Minimize(a_d*cp.square(Pd)+b_d*Pd+8000*zeq),C); pr.solve(solver='CLARABEL')
 print(pr.status,'Pd',Pd.value,'Qd',Qd.value,'z',zeq.value,'served',sum(x.value[idx[k]]*PL[k] for k in buses))
 print('V lin',{b:round(float(np.sqrt(v.value[idx[b]])),4) for b in buses})
-# AC check: fix shedding x from LinDist, run SOCP feasibility (min diesel) and see if feasible
+
 xs=x.value.copy()
 
-# AC Feasibility Check de la solución LinDistFlow
+
 print("\n--- Ejecutando AC Feasibility Check para LinDistFlow ---")
 
-# Declarar variables del flujo AC SOCP
+
 cii_ac = cp.Variable(N); cij_ac = cp.Variable(nb); sij_ac = cp.Variable(nb)
 Pd_ac = cp.Variable(); Qd_ac = cp.Variable()
 ppv_ac = {k: cp.Variable() for k in PV}; qpv_ac = {k: cp.Variable() for k in PV}
@@ -54,7 +54,6 @@ for k in BESS: C_ac += [0 <= pbs_ac[k], pbs_ac[k] <= BESS[k]]
 
 for bn in buses:
     i = idx[bn]
-    # Se inyecta la carga con el deslastre lineal fijado (xs)
     Pinj = -xs[i] * PL[bn]
     Qinj = -xs[i] * QL[bn]
     if bn == '650': Pinj += Pd_ac; Qinj += Qd_ac
