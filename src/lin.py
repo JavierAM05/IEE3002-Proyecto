@@ -23,3 +23,51 @@ print(pr.status,'Pd',Pd.value,'Qd',Qd.value,'z',zeq.value,'served',sum(x.value[i
 print('V lin',{b:round(float(np.sqrt(v.value[idx[b]])),4) for b in buses})
 # AC check: fix shedding x from LinDist, run SOCP feasibility (min diesel) and see if feasible
 xs=x.value.copy()
+
+# AC Feasibility Check de la solución LinDistFlow
+print("\n--- Ejecutando AC Feasibility Check para LinDistFlow ---")
+
+# Declarar variables del flujo AC SOCP
+cii_ac = cp.Variable(N); cij_ac = cp.Variable(nb); sij_ac = cp.Variable(nb)
+Pd_ac = cp.Variable(); Qd_ac = cp.Variable()
+ppv_ac = {k: cp.Variable() for k in PV}; qpv_ac = {k: cp.Variable() for k in PV}
+pbs_ac = {k: cp.Variable() for k in BESS}
+
+Pf_ac = []; Pt_ac = []; Qf_ac = []; Qt_ac = []
+for l, (f, t, *_) in enumerate(br):
+    i, j = idx[f], idx[t]
+    Pf_ac.append(g[l]*(cii_ac[i]-cij_ac[l])-b[l]*sij_ac[l])
+    Qf_ac.append(-b[l]*(cii_ac[i]-cij_ac[l])-g[l]*sij_ac[l])
+    Pt_ac.append(g[l]*(cii_ac[j]-cij_ac[l])+b[l]*sij_ac[l])
+    Qt_ac.append(-b[l]*(cii_ac[j]-cij_ac[l])+g[l]*sij_ac[l])
+
+C_ac = [0.95**2 <= cii_ac, cii_ac <= 1.05**2, 0 <= Pd_ac, Pd_ac <= Pd_max, cp.abs(Qd_ac) <= Qd_max]
+
+for l, (f, t, *_) in enumerate(br):
+    i, j = idx[f], idx[t]
+    C_ac += [cp.SOC(cii_ac[i] + cii_ac[j], cp.hstack([2*cij_ac[l], 2*sij_ac[l], cii_ac[i] - cii_ac[j]]))]
+    Smax = br[l][4]
+    C_ac += [cp.SOC(Smax, cp.hstack([Pf_ac[l], Qf_ac[l]])), cp.SOC(Smax, cp.hstack([Pt_ac[l], Qt_ac[l]]))]
+
+for k in PV: C_ac += [0 <= ppv_ac[k], ppv_ac[k] <= PV[k], cp.SOC(np.hypot(PV[k], PVq), cp.hstack([ppv_ac[k], qpv_ac[k]]))]
+for k in BESS: C_ac += [0 <= pbs_ac[k], pbs_ac[k] <= BESS[k]]
+
+for bn in buses:
+    i = idx[bn]
+    # Se inyecta la carga con el deslastre lineal fijado (xs)
+    Pinj = -xs[i] * PL[bn]
+    Qinj = -xs[i] * QL[bn]
+    if bn == '650': Pinj += Pd_ac; Qinj += Qd_ac
+    if bn in PV: Pinj += ppv_ac[bn]; Qinj += qpv_ac[bn]
+    if bn in BESS: Pinj += pbs_ac[bn]
+
+    fp = sum(Pf_ac[l] for l, (f, t, *_) in enumerate(br) if f == bn) + sum(Pt_ac[l] for l, (f, t, *_) in enumerate(br) if t == bn)
+    fq = sum(Qf_ac[l] for l, (f, t, *_) in enumerate(br) if f == bn) + sum(Qt_ac[l] for l, (f, t, *_) in enumerate(br) if t == bn)
+    C_ac += [fp == Pinj, fq == Qinj]
+
+prob_ac_check = cp.Problem(cp.Minimize(Pd_ac), C_ac)
+prob_ac_check.solve(solver='CLARABEL')
+
+print(f"Estado de factibilidad AC: {prob_ac_check.status}")
+if prob_ac_check.status not in ["optimal", "optimal_inaccurate"]:
+    print("Conclusión: El despacho de LinDistFlow es INFACTIBLE en la red AC real.")

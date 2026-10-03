@@ -77,13 +77,11 @@ def solve(c_eq, verbose=False):
         served=served,total=sum(PL.values()),ppv={k:ppv[k].value for k in PV},pbs={k:pbs[k].value for k in BESS},
         flows={f"{f}-{t}":(Pf[l].value,Qf[l].value,np.hypot(Pf[l].value,Qf[l].value)) for l,(f,t,*_) in enumerate(br)},
         time=pr.solver_stats.solve_time, nvar=sum(v.size for v in pr.variables()), ncon=len(C))
-if __name__=='__main__':
-    for ce in [500,2000,8000]:
-        r=solve(ce)
-        print('c_eq',ce,r['status'],'obj',round(r['obj'],2),'Pd',round(r['Pd'],4),'Qd',round(r['Qd'],4),
-              'Ploss kW',round(r['Ploss']*1e3,2),'Qloss kvar',round(r['Qloss']*1e3,2),'z',round(r['zeq'],4),
-              'served',round(r['served'],4),'/',round(r['total'],4),'gap',r['maxgap'],r['maxrel'],'mism',r['mism'],'t',r['time'])
-        print(' x',{k:round(v,4) for k,v in r['x'].items()})
-        print(' V',{k:round(v,4) for k,v in r['V'].items()}); print(' th',{k:round(v,3) for k,v in r['th'].items()})
-        print(' pv',r['ppv'],'bess',r['pbs']); print(' flows',{k:round(v[2],3) for k,v in r['flows'].items()})
-    print(r['nvar'],r['ncon'])
+if __name__ == '__main__':
+    valores_ceq = [400, 600, 800, 1000, 1500, 8000]
+    print(f"{'c_eq':>6} | {'Pd [MW]':>8} | {'Abast [MW]':>10} | {'Ploss [kW]':>10} | {'z [h]':>8} | {'Vmin [pu]':>9} | {'Max Gap':>10}")
+    print("-" * 75)
+    for ce in valores_ceq:
+        r = solve(ce)
+        vmin = min(r['V'].values())
+        print(f"{ce:6d} | {r['Pd']:8.3f} | {r['served']:10.3f} | {r['Ploss']*1e3:10.2f} | {r['zeq']:8.3f} | {vmin:9.3f} | {r['maxrel']:.2e}")
